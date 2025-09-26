@@ -44,8 +44,8 @@ BYBIT_KLINES_LINEAR  = "https://api.bybit.com/v5/market/kline"          # catego
 # ====== Controls ======
 SEMAPHORE = asyncio.Semaphore(10)                 # 並列制御（必要なら下げる）
 TIMEOUT = aiohttp.ClientTimeout(total=40)         # HTTPタイムアウト
-RETRY_TOTAL_WINDOW_SEC = 300                      # 5分リトライ窓
-RETRY_INTERVAL_SEC = 20                           # 20秒間隔で再試行
+RETRY_TOTAL_WINDOW_SEC = 30                      # 30秒リトライ窓
+RETRY_INTERVAL_SEC = 5                           # 5秒間隔で再試行
 
 TOP_N = 10                                        # 上位通知件数
 
@@ -183,7 +183,7 @@ async def fetch_klines_binance(session: aiohttp.ClientSession, symbol: str, limi
     df["open"]  = pd.to_numeric(df["open"], errors="coerce")
     df["close"] = pd.to_numeric(df["close"], errors="coerce")
     # 正規化（必ず毎時00分に揃える）
-    df["slot"] = df["open_time"].dt.floor("H")
+    df["slot"] = df["open_time"].dt.floor("h")
     df = df.dropna(subset=["open","close"])
     return df[["slot","open","close"]]
 
@@ -201,7 +201,7 @@ async def fetch_klines_bybit(session: aiohttp.ClientSession, symbol: str, limit:
         return pd.DataFrame()
     df = pd.DataFrame(arr, columns=["start","open","high","low","close","volume","turnover"])
     df = df[["start","open","close"]].copy()
-    df["slot"]  = pd.to_datetime(df["start"].astype("int64"), unit="ms", utc=True).dt.tz_convert(timezone.utc).dt.floor("H")
+    df["slot"]  = pd.to_datetime(df["start"].astype("int64"), unit="ms", utc=True).dt.tz_convert(timezone.utc).dt.floor("h")
     df["open"]  = pd.to_numeric(df["open"], errors="coerce")
     df["close"] = pd.to_numeric(df["close"], errors="coerce")
     df = df.dropna(subset=["open","close"])
@@ -360,7 +360,8 @@ def build_messages(top_rows: List[EvalResult], skipped_syms: List[str], total_sy
 
 async def main():
     utc_now = datetime.now(timezone.utc)
-    T_end = floor_to_hour_utc(utc_now)  # 直近確定 1h の「開始時刻」
+    # 直近“確定”1時間足の開始時刻にする
+    T_end = floor_to_hour_utc(utc_now) - timedelta(hours=1)
     print(f"[INFO] UTC now: {utc_now.isoformat()}  |  T_end: {T_end.isoformat()}")
 
     async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
